@@ -43,13 +43,38 @@ Authorization: Bearer <accessToken>
 | GET | `/categories` |
 | GET | `/categories/:id` |
 
+## Cart (JWT — mỗi tài khoản một giỏ riêng)
+
+| Method | Path | Ghi chú |
+|--------|------|---------|
+| GET | `/cart` | Lấy giỏ (tự tạo nếu chưa có) |
+| POST | `/cart/items` | Body: `{ bookId, quantity? }` |
+| PATCH | `/cart/items/:bookId` | Body: `{ quantity }` — `0` = xóa |
+| DELETE | `/cart/items/:bookId` | Xóa một sách |
+| DELETE | `/cart` | Xóa toàn bộ giỏ |
+| POST | `/cart/merge` | Gộp giỏ khách (localStorage) sau đăng nhập: `{ items: [{ bookId, quantity }] }` |
+
+Sau khi đặt hàng thành công (`POST /orders`), giỏ DB của user được xóa tự động.
+
+## Returns (JWT)
+
+| Method | Path | Ghi chú |
+|--------|------|---------|
+| POST | `/returns` | Khách tạo yêu cầu (đơn `delivered`); body: `orderId`, `reason`, `description`, `items[]` |
+| GET | `/returns` | Khách: của mình; Admin/Staff: tất cả |
+| GET | `/returns/:id` | Chi tiết |
+| PATCH | `/returns/:id/status` | Admin/Staff: `status`, `adminNote?`, `refundAmount?` |
+
+Trạng thái: `pending` → `approved` → `received` → `refunded` (hoặc `rejected` / `cancelled`).
+
 ## Orders (JWT)
 
 | Method | Path | Ghi chú |
 |--------|------|---------|
 | GET | `/orders` | Khách: đơn của mình; Admin: tất cả (có thể `?userId=`) |
 | GET | `/orders/:id` | |
-| POST | `/orders` | Tạo đơn (userId lấy từ JWT) |
+| POST | `/orders` | Tạo đơn (userId lấy từ JWT); xóa giỏ DB sau khi tạo |
+| PATCH | `/orders/:id/cancel` | Khách hủy đơn **chờ xác nhận** (`pending`) của mình; hoàn tồn kho |
 | PATCH | `/orders/:id/status` | Admin/Staff only |
 
 ## Reviews (public)

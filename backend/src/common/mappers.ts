@@ -3,6 +3,7 @@ import type { Book, Order, PublicUser, Review } from './types';
 
 type OrderWithItems = PrismaOrder & {
   items: { bookId: string; quantity: number; price: number }[];
+  user?: { fullName: string; name: string | null; email: string; phone: string };
 };
 
 export function mapBook(book: PrismaBook): Book {
@@ -63,6 +64,9 @@ export function mapOrder(order: OrderWithItems): Order {
     status: order.status as Order['status'],
     createdAt: order.createdAt.toISOString().split('T')[0],
     updatedAt: order.updatedAt.toISOString().split('T')[0],
+    customerName: order.user?.name ?? order.user?.fullName,
+    customerEmail: order.user?.email,
+    customerPhone: order.user?.phone,
   };
 }
 

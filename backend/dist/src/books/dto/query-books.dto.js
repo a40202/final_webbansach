@@ -4,6 +4,8 @@ exports.QueryBooksDto = void 0;
 class QueryBooksDto {
     search;
     category;
+    author;
+    publisher;
     filter;
     sortBy;
     minPrice;

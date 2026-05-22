@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { orders, books, users, categories } from "@/lib/data"
+import { useState, useEffect } from "react"
+import { statsApi, type ReportsStats } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,147 +37,48 @@ type TimeRange = "7days" | "30days" | "90days" | "year"
 
 export default function AdminReportsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>("30days")
+  const [stats, setStats] = useState<ReportsStats | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  // Calculate stats based on time range
-  const stats = useMemo(() => {
-    const now = new Date()
-    let startDate = new Date()
-    
-    switch (timeRange) {
-      case "7days":
-        startDate.setDate(now.getDate() - 7)
-        break
-      case "30days":
-        startDate.setDate(now.getDate() - 30)
-        break
-      case "90days":
-        startDate.setDate(now.getDate() - 90)
-        break
-      case "year":
-        startDate.setFullYear(now.getFullYear() - 1)
-        break
-    }
-
-    const filteredOrders = orders.filter(
-      (o) => new Date(o.createdAt) >= startDate
-    )
-    
-    const completedOrders = filteredOrders.filter((o) => o.status === "delivered")
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + o.totalAmount, 0)
-    const totalOrders = filteredOrders.length
-    const cancelledOrders = filteredOrders.filter((o) => o.status === "cancelled").length
-    const avgOrderValue = totalOrders > 0 ? totalRevenue / completedOrders.length : 0
-
-    // Calculate previous period for comparison
-    const prevStartDate = new Date(startDate)
-    const prevEndDate = new Date(startDate)
-    switch (timeRange) {
-      case "7days":
-        prevStartDate.setDate(startDate.getDate() - 7)
-        break
-      case "30days":
-        prevStartDate.setDate(startDate.getDate() - 30)
-        break
-      case "90days":
-        prevStartDate.setDate(startDate.getDate() - 90)
-        break
-      case "year":
-        prevStartDate.setFullYear(startDate.getFullYear() - 1)
-        break
-    }
-
-    const prevOrders = orders.filter(
-      (o) => new Date(o.createdAt) >= prevStartDate && new Date(o.createdAt) < prevEndDate
-    )
-    const prevCompletedOrders = prevOrders.filter((o) => o.status === "delivered")
-    const prevRevenue = prevCompletedOrders.reduce((sum, o) => sum + o.totalAmount, 0)
-
-    const revenueChange = prevRevenue > 0 
-      ? ((totalRevenue - prevRevenue) / prevRevenue * 100).toFixed(1) 
-      : "0"
-
-    return {
-      totalRevenue,
-      totalOrders,
-      completedOrders: completedOrders.length,
-      cancelledOrders,
-      avgOrderValue,
-      revenueChange: parseFloat(revenueChange),
-      newCustomers: users.filter(
-        (u) => u.role === "customer" && new Date(u.createdAt) >= startDate
-      ).length,
-    }
+  useEffect(() => {
+    setLoading(true)
+    statsApi
+      .getReports(timeRange)
+      .then(setStats)
+      .catch(() => setStats(null))
+      .finally(() => setLoading(false))
   }, [timeRange])
 
-  // Top selling books
-  const topBooks = useMemo(() => {
-    const bookSales: Record<string, { book: typeof books[0]; quantity: number; revenue: number }> = {}
-    
-    orders
-      .filter((o) => o.status === "delivered")
-      .forEach((order) => {
-        order.items.forEach((item) => {
-          const book = books.find((b) => b.id === item.bookId)
-          if (book) {
-            if (!bookSales[book.id]) {
-              bookSales[book.id] = { book, quantity: 0, revenue: 0 }
-            }
-            bookSales[book.id].quantity += item.quantity
-            bookSales[book.id].revenue += item.price * item.quantity
-          }
-        })
-      })
+  const placeholder = {
+    totalRevenue: 0,
+    totalOrders: 0,
+    completedOrders: 0,
+    cancelledOrders: 0,
+    avgOrderValue: 0,
+    revenueChange: 0,
+    ordersChange: 0,
+    topBooks: [] as ReportsStats["topBooks"],
+    ordersByStatus: {} as Record<string, number>,
+    revenueByMonth: [] as ReportsStats["revenueByMonth"],
+  }
 
-    return Object.values(bookSales)
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10)
-  }, [])
+  const data = stats ?? placeholder
 
-  // Category revenue
-  const categoryStats = useMemo(() => {
-    const catRevenue: Record<string, number> = {}
-    
-    orders
-      .filter((o) => o.status === "delivered")
-      .forEach((order) => {
-        order.items.forEach((item) => {
-          const book = books.find((b) => b.id === item.bookId)
-          if (book) {
-            const categoryId = book.categoryId
-            if (!catRevenue[categoryId]) catRevenue[categoryId] = 0
-            catRevenue[categoryId] += item.price * item.quantity
-          }
-        })
-      })
+  const monthlyData = data.revenueByMonth.map((m) => ({
+    month: m.month,
+    revenue: m.revenue,
+    orders: m.orders,
+  }))
+  const maxRevenue = Math.max(...monthlyData.map((m) => m.revenue), 1)
+  const topBooks = data.topBooks
 
-    return categories
-      .map((cat) => ({
-        category: cat,
-        revenue: catRevenue[cat.id] || 0,
-      }))
-      .sort((a, b) => b.revenue - a.revenue)
-  }, [])
-
-  // Monthly revenue for chart simulation
-  const monthlyData = useMemo(() => {
-    const months = []
-    const now = new Date()
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const monthName = date.toLocaleDateString("vi-VN", { month: "short" })
-      const monthOrders = orders.filter((o) => {
-        const orderDate = new Date(o.createdAt)
-        return orderDate.getMonth() === date.getMonth() && 
-               orderDate.getFullYear() === date.getFullYear() &&
-               o.status === "delivered"
-      })
-      const revenue = monthOrders.reduce((sum, o) => sum + o.totalAmount, 0)
-      months.push({ month: monthName, revenue, orders: monthOrders.length })
-    }
-    return months
-  }, [])
-
-  const maxRevenue = Math.max(...monthlyData.map((m) => m.revenue))
+  const statusLabels: Record<string, string> = {
+    pending: "Cho xac nhan",
+    confirmed: "Da xac nhan",
+    shipping: "Dang giao",
+    delivered: "Da giao",
+    cancelled: "Da huy",
+  }
 
   return (
     <div className="space-y-6">
@@ -206,6 +107,10 @@ export default function AdminReportsPage() {
         </div>
       </div>
 
+      {loading && (
+        <p className="text-muted-foreground text-sm">Dang tai bao cao...</p>
+      )}
+
       {/* Overview Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -213,15 +118,15 @@ export default function AdminReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Doanh thu</p>
-                <p className="text-2xl font-bold">{stats.totalRevenue.toLocaleString("vi-VN")}đ</p>
+                <p className="text-2xl font-bold">{data.totalRevenue.toLocaleString("vi-VN")}d</p>
                 <div className="flex items-center gap-1 mt-1">
-                  {stats.revenueChange >= 0 ? (
+                  {data.revenueChange >= 0 ? (
                     <TrendingUp className="h-4 w-4 text-green-600" />
                   ) : (
                     <TrendingDown className="h-4 w-4 text-red-600" />
                   )}
-                  <span className={`text-sm ${stats.revenueChange >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {stats.revenueChange >= 0 ? "+" : ""}{stats.revenueChange}%
+                  <span className={`text-sm ${data.revenueChange >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    {data.revenueChange >= 0 ? "+" : ""}{data.revenueChange}%
                   </span>
                 </div>
               </div>
@@ -237,9 +142,9 @@ export default function AdminReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Đơn hàng</p>
-                <p className="text-2xl font-bold">{stats.totalOrders}</p>
+                <p className="text-2xl font-bold">{data.totalOrders}</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {stats.completedOrders} hoàn thành
+                  {data.completedOrders} hoan thanh
                 </p>
               </div>
               <div className="p-3 rounded-full bg-blue-50">
@@ -254,9 +159,9 @@ export default function AdminReportsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Giá trị TB/đơn</p>
-                <p className="text-2xl font-bold">{Math.round(stats.avgOrderValue).toLocaleString("vi-VN")}đ</p>
+                <p className="text-2xl font-bold">{Math.round(data.avgOrderValue).toLocaleString("vi-VN")}d</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {stats.cancelledOrders} đơn hủy
+                  {data.cancelledOrders} don huy
                 </p>
               </div>
               <div className="p-3 rounded-full bg-purple-50">
@@ -270,10 +175,10 @@ export default function AdminReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Khách hàng mới</p>
-                <p className="text-2xl font-bold">{stats.newCustomers}</p>
+                <p className="text-sm text-muted-foreground">Bien dong don</p>
+                <p className="text-2xl font-bold">{data.ordersChange >= 0 ? "+" : ""}{data.ordersChange}%</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  trong kỳ báo cáo
+                  so voi ky truoc
                 </p>
               </div>
               <div className="p-3 rounded-full bg-orange-50">
@@ -383,10 +288,8 @@ export default function AdminReportsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {topBooks.map((item, index) => {
-                    const category = categories.find((c) => c.id === item.book.categoryId)
-                    return (
-                      <TableRow key={item.book.id}>
+                  {topBooks.map((item, index) => (
+                      <TableRow key={item.bookId}>
                         <TableCell>
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                             index === 0 ? "bg-yellow-100 text-yellow-800" :
@@ -398,26 +301,15 @@ export default function AdminReportsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={item.book.coverImage}
-                              alt={item.book.title}
-                              className="w-10 h-14 object-cover rounded"
-                            />
-                            <div>
-                              <p className="font-medium line-clamp-1">{item.book.title}</p>
-                              <p className="text-xs text-muted-foreground">{item.book.author}</p>
-                            </div>
-                          </div>
+                          <p className="font-medium line-clamp-1">{item.title}</p>
                         </TableCell>
-                        <TableCell className="hidden md:table-cell">{category?.name}</TableCell>
+                        <TableCell className="hidden md:table-cell">—</TableCell>
                         <TableCell className="text-center font-medium">{item.quantity}</TableCell>
                         <TableCell className="text-right font-medium">
-                          {item.revenue.toLocaleString("vi-VN")}đ
+                          {item.revenue.toLocaleString("vi-VN")}d
                         </TableCell>
                       </TableRow>
-                    )
-                  })}
+                    ))}
                 </TableBody>
               </Table>
               {topBooks.length === 0 && (
@@ -430,73 +322,28 @@ export default function AdminReportsPage() {
         </TabsContent>
 
         <TabsContent value="categories">
-          <div className="grid gap-4 lg:grid-cols-2">
-            {/* Category Revenue Distribution */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Doanh thu theo thể loại</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {categoryStats.map((item) => {
-                    const totalCatRevenue = categoryStats.reduce((sum, c) => sum + c.revenue, 0)
-                    const percentage = totalCatRevenue > 0 
-                      ? (item.revenue / totalCatRevenue * 100).toFixed(1) 
-                      : 0
-                    return (
-                      <div key={item.category.id} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">{item.category.name}</span>
-                          <span className="text-sm text-muted-foreground">{percentage}%</span>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-primary rounded-full transition-all"
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {item.revenue.toLocaleString("vi-VN")}đ
-                        </p>
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Category Stats Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Chi tiết theo thể loại</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Thể loại</TableHead>
-                      <TableHead className="text-center">Số sách</TableHead>
-                      <TableHead className="text-right">Doanh thu</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {categoryStats.map((item) => {
-                      const bookCount = books.filter((b) => b.categoryId === item.category.id).length
-                      return (
-                        <TableRow key={item.category.id}>
-                          <TableCell className="font-medium">{item.category.name}</TableCell>
-                          <TableCell className="text-center">{bookCount}</TableCell>
-                          <TableCell className="text-right">
-                            {item.revenue.toLocaleString("vi-VN")}đ
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Don hang theo trang thai</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {Object.entries(data.ordersByStatus).map(([status, count]) => {
+                const total = Object.values(data.ordersByStatus).reduce((a, b) => a + b, 0)
+                const pct = total > 0 ? ((count / total) * 100).toFixed(1) : 0
+                return (
+                  <div key={status} className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="font-medium">{statusLabels[status] || status}</span>
+                      <span className="text-sm text-muted-foreground">{count} don ({pct}%)</span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

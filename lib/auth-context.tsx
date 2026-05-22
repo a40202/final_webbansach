@@ -1,6 +1,13 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from 'react'
+import { useRouter } from 'next/navigation'
 import {
   authApi,
   ApiError,
@@ -46,13 +53,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false)
         return
       }
+
+      try {
+        const parsed = JSON.parse(savedUser) as PublicUser
+        setUser(parsed)
+      } catch {
+        clearAccessToken()
+        localStorage.removeItem('user')
+        setIsLoading(false)
+        return
+      }
+
       try {
         const me = await authApi.me()
         setUser(me)
         localStorage.setItem('user', JSON.stringify(me))
-      } catch {
-        clearAccessToken()
-        localStorage.removeItem('user')
+      } catch (e) {
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+          clearAccessToken()
+          localStorage.removeItem('user')
+          setUser(null)
+        }
       } finally {
         setIsLoading(false)
       }
@@ -130,4 +151,18 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
+}
+
+/** Đợi khôi phục phiên xong rồi mới redirect — tránh logout giả khi F5 */
+export function useRequireAuth(redirectTo = '/login') {
+  const { user, isLoading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace(redirectTo)
+    }
+  }, [isLoading, user, router, redirectTo])
+
+  return { user, isLoading, isReady: !isLoading && !!user }
 }

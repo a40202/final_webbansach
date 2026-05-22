@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Separator } from '@/components/ui/separator'
 import { useCart } from '@/lib/cart-context'
-import { useAuth } from '@/lib/auth-context'
+import { useRequireAuth } from '@/lib/auth-context'
 import { formatPrice } from '@/lib/data'
 import { ordersApi, ApiError } from '@/lib/api'
 import { toast } from 'sonner'
@@ -22,7 +22,7 @@ import { toast } from 'sonner'
 export default function CheckoutPage() {
   const router = useRouter()
   const { getCartItems, getCartTotal, clearCart } = useCart()
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useRequireAuth()
   const [isLoading, setIsLoading] = useState(false)
   
   const [formData, setFormData] = useState({
@@ -38,6 +38,18 @@ export default function CheckoutPage() {
   const subtotal = getCartTotal()
   const shippingFee = subtotal >= 300000 ? 0 : 30000
   const total = subtotal + shippingFee
+
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <p className="text-muted-foreground">Đang tải...</p>
+        </main>
+        <Footer />
+      </div>
+    )
+  }
 
   if (cartItems.length === 0) {
     router.push('/cart')
@@ -65,7 +77,7 @@ export default function CheckoutPage() {
     setIsLoading(true)
 
     try {
-      await ordersApi.create({
+      const order = await ordersApi.create({
         items: cartItems.map(({ book, quantity }) => ({
           bookId: book.id,
           quantity,
@@ -74,10 +86,13 @@ export default function CheckoutPage() {
         phone: formData.phone,
         paymentMethod: formData.paymentMethod,
         shippingFee,
+        buyerName: formData.fullName,
+        buyerEmail: formData.email,
+        note: formData.note,
       })
       clearCart()
       toast.success('Dat hang thanh cong!')
-      router.push('/order-success')
+      router.push(`/order-success?orderId=${order.id}`)
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : 'Dat hang that bai'
       toast.error(msg)

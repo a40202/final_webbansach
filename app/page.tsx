@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Header } from '@/components/layout/header'
 import { Footer } from '@/components/layout/footer'
 import { BookCard } from '@/components/book-card'
-import { categories } from '@/lib/data'
-import { booksApi } from '@/lib/api'
+import { booksApi, categoriesApi } from '@/lib/api'
 
 const features = [
   {
@@ -32,10 +31,11 @@ const features = [
 ]
 
 export default async function HomePage() {
-  const [featuredBooks, newArrivals, bestSellers] = await Promise.all([
+  const [featuredBooks, newArrivals, bestSellers, categories] = await Promise.all([
     booksApi.getFeatured(),
     booksApi.getNewArrivals(),
     booksApi.getBestSellers(),
+    categoriesApi.getAll(),
   ])
 
   return (

@@ -39,7 +39,7 @@ export function Footer() {
             <div className="space-y-3">
               <div className="flex items-center gap-3 text-sm">
                 <MapPin className="h-4 w-4 flex-shrink-0" />
-                <span>123 Nguyễn Văn Linh, Quận 7, TP.HCM</span>
+                <span>Đ. Nghiêm Xuân Yêm, Định Công, Hà Nội</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <Phone className="h-4 w-4 flex-shrink-0" />

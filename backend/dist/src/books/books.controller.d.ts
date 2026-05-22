@@ -7,5 +7,9 @@ export declare class BooksController {
     findFeatured(): Promise<import("../common/types").Book[]>;
     findNewArrivals(): Promise<import("../common/types").Book[]>;
     findBestSellers(): Promise<import("../common/types").Book[]>;
+    getFiltersMeta(): Promise<{
+        authors: string[];
+        publishers: string[];
+    }>;
     findOne(id: string): Promise<import("../common/types").Book>;
 }

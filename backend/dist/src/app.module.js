@@ -9,13 +9,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const articles_module_1 = require("./articles/articles.module");
+const cart_module_1 = require("./cart/cart.module");
+const invoices_module_1 = require("./invoices/invoices.module");
+const returns_module_1 = require("./returns/returns.module");
 const auth_module_1 = require("./auth/auth.module");
 const books_module_1 = require("./books/books.module");
 const categories_module_1 = require("./categories/categories.module");
 const health_controller_1 = require("./health/health.controller");
 const orders_module_1 = require("./orders/orders.module");
 const prisma_module_1 = require("./prisma/prisma.module");
+const promotions_module_1 = require("./promotions/promotions.module");
 const reviews_module_1 = require("./reviews/reviews.module");
+const stats_module_1 = require("./stats/stats.module");
 const users_module_1 = require("./users/users.module");
 let AppModule = class AppModule {
 };
@@ -31,6 +37,12 @@ exports.AppModule = AppModule = __decorate([
             orders_module_1.OrdersModule,
             reviews_module_1.ReviewsModule,
             users_module_1.UsersModule,
+            stats_module_1.StatsModule,
+            promotions_module_1.PromotionsModule,
+            articles_module_1.ArticlesModule,
+            invoices_module_1.InvoicesModule,
+            cart_module_1.CartModule,
+            returns_module_1.ReturnsModule,
         ],
         controllers: [health_controller_1.HealthController],
     })

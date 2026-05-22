@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-react'
 import { Header } from '@/components/layout/header'
@@ -29,8 +29,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { categories, type Book } from '@/lib/data'
-import { booksApi } from '@/lib/api'
+import type { Book, Category } from '@/lib/data'
+import { booksApi, categoriesApi } from '@/lib/api'
 
 const sortOptions = [
   { value: 'newest', label: 'Mới nhất' },
@@ -53,15 +53,31 @@ function FilterSidebar({
   setSelectedCategories,
   selectedPriceRanges,
   setSelectedPriceRanges,
+  selectedAuthors,
+  setSelectedAuthors,
+  selectedPublishers,
+  setSelectedPublishers,
+  authors,
+  publishers,
+  categories,
   onReset,
 }: {
   selectedCategories: string[]
   setSelectedCategories: (categories: string[]) => void
   selectedPriceRanges: string[]
   setSelectedPriceRanges: (ranges: string[]) => void
+  selectedAuthors: string[]
+  setSelectedAuthors: (authors: string[]) => void
+  selectedPublishers: string[]
+  setSelectedPublishers: (publishers: string[]) => void
+  authors: string[]
+  publishers: string[]
+  categories: Category[]
   onReset: () => void
 }) {
   const [categoryOpen, setCategoryOpen] = useState(true)
+  const [authorOpen, setAuthorOpen] = useState(true)
+  const [publisherOpen, setPublisherOpen] = useState(true)
   const [priceOpen, setPriceOpen] = useState(true)
 
   const toggleCategory = (slug: string) => {
@@ -80,7 +96,27 @@ function FilterSidebar({
     )
   }
 
-  const hasFilters = selectedCategories.length > 0 || selectedPriceRanges.length > 0
+  const toggleAuthor = (name: string) => {
+    setSelectedAuthors(
+      selectedAuthors.includes(name)
+        ? selectedAuthors.filter((a) => a !== name)
+        : [...selectedAuthors, name],
+    )
+  }
+
+  const togglePublisher = (name: string) => {
+    setSelectedPublishers(
+      selectedPublishers.includes(name)
+        ? selectedPublishers.filter((p) => p !== name)
+        : [...selectedPublishers, name],
+    )
+  }
+
+  const hasFilters =
+    selectedCategories.length > 0 ||
+    selectedPriceRanges.length > 0 ||
+    selectedAuthors.length > 0 ||
+    selectedPublishers.length > 0
 
   return (
     <div className="space-y-6">
@@ -111,6 +147,48 @@ function FilterSidebar({
               >
                 {category.name}
                 <span className="text-muted-foreground ml-1">({category.bookCount})</span>
+              </Label>
+            </div>
+          ))}
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Collapsible open={authorOpen} onOpenChange={setAuthorOpen}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 font-medium">
+          Tac gia
+          <ChevronDown className={`h-4 w-4 transition-transform ${authorOpen ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2 space-y-2 max-h-48 overflow-y-auto">
+          {authors.map((author) => (
+            <div key={author} className="flex items-center gap-2">
+              <Checkbox
+                id={`author-${author}`}
+                checked={selectedAuthors.includes(author)}
+                onCheckedChange={() => toggleAuthor(author)}
+              />
+              <Label htmlFor={`author-${author}`} className="text-sm font-normal cursor-pointer">
+                {author}
+              </Label>
+            </div>
+          ))}
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Collapsible open={publisherOpen} onOpenChange={setPublisherOpen}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 font-medium">
+          Nha xuat ban
+          <ChevronDown className={`h-4 w-4 transition-transform ${publisherOpen ? 'rotate-180' : ''}`} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2 space-y-2 max-h-48 overflow-y-auto">
+          {publishers.map((publisher) => (
+            <div key={publisher} className="flex items-center gap-2">
+              <Checkbox
+                id={`pub-${publisher}`}
+                checked={selectedPublishers.includes(publisher)}
+                onCheckedChange={() => togglePublisher(publisher)}
+              />
+              <Label htmlFor={`pub-${publisher}`} className="text-sm font-normal cursor-pointer">
+                {publisher}
               </Label>
             </div>
           ))}
@@ -159,90 +237,98 @@ export default function BooksPage() {
     initialCategory ? [initialCategory] : []
   )
   const [selectedPriceRanges, setSelectedPriceRanges] = useState<string[]>([])
+  const [selectedAuthors, setSelectedAuthors] = useState<string[]>([])
+  const [selectedPublishers, setSelectedPublishers] = useState<string[]>([])
+  const [authors, setAuthors] = useState<string[]>([])
+  const [publishers, setPublishers] = useState<string[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+
+  useEffect(() => {
+    Promise.all([booksApi.getFiltersMeta(), categoriesApi.getAll()]).then(
+      ([meta, cats]) => {
+        setAuthors(meta.authors)
+        setPublishers(meta.publishers)
+        setCategories(cats)
+      },
+    )
+  }, [])
 
   useEffect(() => {
     setLoading(true)
+    const q = searchQuery || initialSearch
+    let minPrice: number | undefined
+    let maxPrice: number | undefined
+    if (selectedPriceRanges.length === 1) {
+      const [min, max] = selectedPriceRanges[0].split('-').map(Number)
+      minPrice = min
+      maxPrice = max
+    }
+
     booksApi
       .getAll({
-        search: initialSearch || undefined,
+        search: q || undefined,
+        category: selectedCategories[0] || undefined,
+        author: selectedAuthors[0] || undefined,
+        publisher: selectedPublishers[0] || undefined,
         filter: (initialFilter as 'featured' | 'new' | 'bestseller') || undefined,
+        sortBy,
+        minPrice,
+        maxPrice,
       })
-      .then(setBooks)
+      .then((data) => {
+        let result = data
+        if (selectedCategories.length > 1) {
+          result = result.filter((book) => {
+            const slug = book.category.toLowerCase().replace(/ /g, '-')
+            return selectedCategories.some(
+              (cat) => slug.includes(cat) || cat.includes(slug),
+            )
+          })
+        }
+        if (selectedAuthors.length > 1) {
+          result = result.filter((b) => selectedAuthors.includes(b.author))
+        }
+        if (selectedPublishers.length > 1) {
+          result = result.filter((b) => selectedPublishers.includes(b.publisher))
+        }
+        if (selectedPriceRanges.length > 1) {
+          result = result.filter((book) =>
+            selectedPriceRanges.some((range) => {
+              const [min, max] = range.split('-').map(Number)
+              return book.price >= min && book.price <= max
+            }),
+          )
+        }
+        setBooks(result)
+      })
       .catch(() => setBooks([]))
       .finally(() => setLoading(false))
-  }, [initialSearch, initialFilter])
+  }, [
+    searchQuery,
+    initialSearch,
+    initialFilter,
+    selectedCategories,
+    selectedAuthors,
+    selectedPublishers,
+    selectedPriceRanges,
+    sortBy,
+  ])
 
-  const filteredBooks = useMemo(() => {
-    let result = [...books]
-
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      result = result.filter(
-        (book) =>
-          book.title.toLowerCase().includes(query) ||
-          book.author.toLowerCase().includes(query)
-      )
-    }
-
-    // Category filter
-    if (selectedCategories.length > 0) {
-      result = result.filter((book) => {
-        const bookCategorySlug = book.category.toLowerCase().replace(/ /g, '-')
-        return selectedCategories.some(
-          (cat) => bookCategorySlug.includes(cat) || cat.includes(bookCategorySlug)
-        )
-      })
-    }
-
-    // Price filter
-    if (selectedPriceRanges.length > 0) {
-      result = result.filter((book) =>
-        selectedPriceRanges.some((range) => {
-          const [min, max] = range.split('-').map(Number)
-          return book.price >= min && book.price <= max
-        })
-      )
-    }
-
-    // Special filters
-    if (initialFilter === 'featured') {
-      result = result.filter((book) => book.isFeatured)
-    } else if (initialFilter === 'new') {
-      result = result.filter((book) => book.isNewArrival)
-    } else if (initialFilter === 'bestseller') {
-      result = result.filter((book) => book.isBestSeller)
-    }
-
-    // Sort
-    switch (sortBy) {
-      case 'price-asc':
-        result.sort((a, b) => a.price - b.price)
-        break
-      case 'price-desc':
-        result.sort((a, b) => b.price - a.price)
-        break
-      case 'rating':
-        result.sort((a, b) => b.rating - a.rating)
-        break
-      case 'bestseller':
-        result.sort((a, b) => b.reviewCount - a.reviewCount)
-        break
-      default:
-        // newest - keep original order
-        break
-    }
-
-    return result
-  }, [searchQuery, selectedCategories, selectedPriceRanges, sortBy, initialFilter])
+  const filteredBooks = books
 
   const resetFilters = () => {
     setSelectedCategories([])
     setSelectedPriceRanges([])
+    setSelectedAuthors([])
+    setSelectedPublishers([])
     setSearchQuery('')
   }
 
-  const filterCount = selectedCategories.length + selectedPriceRanges.length
+  const filterCount =
+    selectedCategories.length +
+    selectedPriceRanges.length +
+    selectedAuthors.length +
+    selectedPublishers.length
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -276,6 +362,13 @@ export default function BooksPage() {
                   setSelectedCategories={setSelectedCategories}
                   selectedPriceRanges={selectedPriceRanges}
                   setSelectedPriceRanges={setSelectedPriceRanges}
+                  selectedAuthors={selectedAuthors}
+                  setSelectedAuthors={setSelectedAuthors}
+                  selectedPublishers={selectedPublishers}
+                  setSelectedPublishers={setSelectedPublishers}
+                  authors={authors}
+                  publishers={publishers}
+                  categories={categories}
                   onReset={resetFilters}
                 />
               </div>
@@ -321,6 +414,12 @@ export default function BooksPage() {
                           setSelectedCategories={setSelectedCategories}
                           selectedPriceRanges={selectedPriceRanges}
                           setSelectedPriceRanges={setSelectedPriceRanges}
+                          selectedAuthors={selectedAuthors}
+                          setSelectedAuthors={setSelectedAuthors}
+                          selectedPublishers={selectedPublishers}
+                          setSelectedPublishers={setSelectedPublishers}
+                          authors={authors}
+                          publishers={publishers}
                           onReset={resetFilters}
                         />
                       </div>

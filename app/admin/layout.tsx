@@ -16,19 +16,27 @@ import {
   LogOut,
   ChevronDown,
   Tag,
-  HeadphonesIcon
+  HeadphonesIcon,
+  Percent,
+  FileText,
+  Receipt,
+  RotateCcw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const menuItems = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/books", label: "Quản lý sách", icon: BookOpen },
-  { href: "/admin/categories", label: "Quản lý danh mục", icon: Tag },
-  { href: "/admin/inventory", label: "Quản lý kho", icon: Package },
-  { href: "/admin/orders", label: "Quản lý đơn hàng", icon: ShoppingCart },
-  { href: "/admin/users", label: "Quản lý người dùng", icon: Users },
-  { href: "/admin/support", label: "Hỗ trợ khách hàng", icon: HeadphonesIcon },
-  { href: "/admin/reports", label: "Thống kê báo cáo", icon: BarChart3 },
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "staff"] },
+  { href: "/admin/books", label: "Quan ly sach", icon: BookOpen, roles: ["admin", "staff"] },
+  { href: "/admin/categories", label: "Quan ly danh muc", icon: Tag, roles: ["admin", "staff"] },
+  { href: "/admin/inventory", label: "Quan ly kho", icon: Package, roles: ["admin", "staff"] },
+  { href: "/admin/orders", label: "Quan ly don hang", icon: ShoppingCart, roles: ["admin", "staff"] },
+  { href: "/admin/returns", label: "Tra hang", icon: RotateCcw, roles: ["admin", "staff"] },
+  { href: "/admin/invoices", label: "Hoa don", icon: Receipt, roles: ["admin", "staff"] },
+  { href: "/admin/promotions", label: "Khuyen mai", icon: Percent, roles: ["admin", "staff"] },
+  { href: "/admin/articles", label: "Quan ly bai viet", icon: FileText, roles: ["admin", "staff"] },
+  { href: "/admin/users", label: "Quan ly nguoi dung", icon: Users, roles: ["admin"] },
+  { href: "/admin/support", label: "Ho tro khach hang", icon: HeadphonesIcon, roles: ["admin", "staff"] },
+  { href: "/admin/reports", label: "Thong ke bao cao", icon: BarChart3, roles: ["admin", "staff"] },
 ]
 
 export default function AdminLayout({
@@ -36,19 +44,23 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { user, logout } = useAuth()
+  const { user, logout, isLoading } = useAuth()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentPath, setCurrentPath] = useState("")
 
+  const isStaff =
+    user?.role === "admin" || user?.role === "staff"
+
   useEffect(() => {
-    if (!user || user.role !== "admin") {
-      router.push("/login")
+    if (isLoading) return
+    if (!isStaff) {
+      router.replace("/login")
     }
     setCurrentPath(window.location.pathname)
-  }, [user, router])
+  }, [user, isLoading, isStaff, router])
 
-  if (!user || user.role !== "admin") {
+  if (isLoading || !isStaff) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
         <div className="text-center">
@@ -95,7 +107,7 @@ export default function AdminLayout({
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto p-4">
             <ul className="space-y-1">
-              {menuItems.map((item) => {
+              {menuItems.filter((item) => item.roles.includes(user.role)).map((item) => {
                 const isActive = currentPath === item.href || 
                   (item.href !== "/admin" && currentPath.startsWith(item.href))
                 return (

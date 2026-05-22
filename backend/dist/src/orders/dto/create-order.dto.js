@@ -12,6 +12,9 @@ class CreateOrderDto {
     phone;
     paymentMethod;
     shippingFee;
+    buyerName;
+    buyerEmail;
+    note;
 }
 exports.CreateOrderDto = CreateOrderDto;
 //# sourceMappingURL=create-order.dto.js.map

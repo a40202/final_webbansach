@@ -14,10 +14,16 @@ const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const mappers_1 = require("../common/mappers");
 const prisma_service_1 = require("../prisma/prisma.service");
+const cart_service_1 = require("../cart/cart.service");
+const invoices_service_1 = require("../invoices/invoices.service");
 let OrdersService = class OrdersService {
     prisma;
-    constructor(prisma) {
+    invoicesService;
+    cartService;
+    constructor(prisma, invoicesService, cartService) {
         this.prisma = prisma;
+        this.invoicesService = invoicesService;
+        this.cartService = cartService;
     }
     async nextOrderId() {
         const orders = await this.prisma.order.findMany({
@@ -38,7 +44,12 @@ let OrdersService = class OrdersService {
                 : { userId: user.id };
         const rows = await this.prisma.order.findMany({
             where,
-            include: { items: true },
+            include: {
+                items: true,
+                user: {
+                    select: { fullName: true, name: true, email: true, phone: true },
+                },
+            },
             orderBy: { createdAt: 'desc' },
         });
         return rows.map(mappers_1.mapOrder);
@@ -78,6 +89,9 @@ let OrdersService = class OrdersService {
         const shippingFee = dto.shippingFee ?? (subtotal >= 300000 ? 0 : 30000);
         const totalAmount = subtotal + shippingFee;
         const orderId = await this.nextOrderId();
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.BadRequestException('User not found');
         const order = await this.prisma.$transaction(async (tx) => {
             for (const item of orderItems) {
                 await tx.book.update({
@@ -85,7 +99,7 @@ let OrdersService = class OrdersService {
                     data: { stock: { decrement: item.quantity } },
                 });
             }
-            return tx.order.create({
+            const created = await tx.order.create({
                 data: {
                     id: orderId,
                     userId,
@@ -100,17 +114,77 @@ let OrdersService = class OrdersService {
                 },
                 include: { items: true },
             });
+            await this.invoicesService.createForOrder(created.id, userId, {
+                subtotal,
+                shippingFee,
+                totalAmount,
+                paymentMethod: dto.paymentMethod,
+                buyerName: dto.buyerName || user.fullName,
+                buyerEmail: dto.buyerEmail || user.email,
+                buyerPhone: dto.phone,
+                buyerAddress: dto.shippingAddress,
+                note: dto.note,
+            }, tx);
+            return created;
         });
+        await this.cartService.clearCart(userId);
         return (0, mappers_1.mapOrder)(order);
+    }
+    async cancelByCustomer(id, user) {
+        const order = await this.prisma.order.findUnique({
+            where: { id },
+            include: { items: true },
+        });
+        if (!order)
+            throw new common_1.NotFoundException(`Order ${id} not found`);
+        if (order.userId !== user.id) {
+            throw new common_1.ForbiddenException('Khong co quyen huy don hang nay');
+        }
+        if (order.status !== client_1.OrderStatus.pending) {
+            throw new common_1.BadRequestException('Chi huy duoc don hang dang cho xac nhan');
+        }
+        const updated = await this.prisma.$transaction(async (tx) => {
+            for (const item of order.items) {
+                await tx.book.update({
+                    where: { id: item.bookId },
+                    data: { stock: { increment: item.quantity } },
+                });
+            }
+            return tx.order.update({
+                where: { id },
+                data: { status: client_1.OrderStatus.cancelled },
+                include: { items: true },
+            });
+        });
+        return (0, mappers_1.mapOrder)(updated);
     }
     async updateStatus(id, status, user) {
         if (user.role !== 'admin' && user.role !== 'staff') {
             throw new common_1.ForbiddenException('Chi admin/staff moi cap nhat trang thai');
         }
-        const order = await this.prisma.order.update({
+        const existing = await this.prisma.order.findUnique({
             where: { id },
-            data: { status: status },
             include: { items: true },
+        });
+        if (!existing)
+            throw new common_1.NotFoundException(`Order ${id} not found`);
+        const newStatus = status;
+        const shouldRestoreStock = newStatus === client_1.OrderStatus.cancelled &&
+            existing.status !== client_1.OrderStatus.cancelled;
+        const order = await this.prisma.$transaction(async (tx) => {
+            if (shouldRestoreStock) {
+                for (const item of existing.items) {
+                    await tx.book.update({
+                        where: { id: item.bookId },
+                        data: { stock: { increment: item.quantity } },
+                    });
+                }
+            }
+            return tx.order.update({
+                where: { id },
+                data: { status: newStatus },
+                include: { items: true },
+            });
         });
         return (0, mappers_1.mapOrder)(order);
     }
@@ -118,6 +192,8 @@ let OrdersService = class OrdersService {
 exports.OrdersService = OrdersService;
 exports.OrdersService = OrdersService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        invoices_service_1.InvoicesService,
+        cart_service_1.CartService])
 ], OrdersService);
 //# sourceMappingURL=orders.service.js.map

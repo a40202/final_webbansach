@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { orders, users, books } from "@/lib/data"
+import { useState, useEffect } from "react"
+import { booksApi, ordersApi, type OrderWithCustomer } from "@/lib/api"
+import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,6 +39,8 @@ import {
 } from "lucide-react"
 import type { Order } from "@/lib/data"
 
+type AdminOrder = OrderWithCustomer
+
 const statusOptions = [
   { value: "pending", label: "Chờ xác nhận", icon: Clock, color: "text-yellow-600 bg-yellow-50" },
   { value: "confirmed", label: "Đã xác nhận", icon: CheckCircle, color: "text-blue-600 bg-blue-50" },
@@ -49,16 +52,33 @@ const statusOptions = [
 export default function AdminOrdersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [orderList, setOrderList] = useState(orders)
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [orderList, setOrderList] = useState<AdminOrder[]>([])
+  const [bookMap, setBookMap] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(true)
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null)
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
 
+  const loadOrders = () => {
+    setLoading(true)
+    Promise.all([ordersApi.getAll(), booksApi.getAll()])
+      .then(([orders, allBooks]) => {
+        setOrderList(orders)
+        setBookMap(Object.fromEntries(allBooks.map((b) => [b.id, b.title])))
+      })
+      .catch(() => toast.error("Khong tai duoc don hang. Dang nhap lai admin."))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadOrders()
+  }, [])
+
   const filteredOrders = orderList.filter((order) => {
-    const customer = users.find((u) => u.id === order.userId)
+    const name = order.customerName || ""
     const matchesSearch =
       order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (customer?.name || customer?.fullName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer?.phone?.includes(searchTerm)
+      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.customerPhone || order.phone).includes(searchTerm)
     const matchesStatus = statusFilter === "all" || order.status === statusFilter
     return matchesSearch && matchesStatus
   })
@@ -67,18 +87,25 @@ export default function AdminOrdersPage() {
     return statusOptions.find((s) => s.value === status) || statusOptions[0]
   }
 
-  const handleStatusChange = (orderId: string, newStatus: string) => {
-    setOrderList(
-      orderList.map((order) =>
-        order.id === orderId ? { ...order, status: newStatus as Order["status"] } : order
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    try {
+      const updated = await ordersApi.updateStatus(
+        orderId,
+        newStatus as Order["status"],
       )
-    )
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus as Order["status"] })
+      setOrderList((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, ...updated } : o)),
+      )
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, ...updated })
+      }
+      toast.success("Cap nhat trang thai thanh cong")
+    } catch {
+      toast.error("Cap nhat that bai")
     }
   }
 
-  const openDetailDialog = (order: Order) => {
+  const openDetailDialog = (order: AdminOrder) => {
     setSelectedOrder(order)
     setIsDetailDialogOpen(true)
   }
@@ -90,10 +117,19 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Quản lý đơn hàng</h1>
-        <p className="text-muted-foreground">Xem và cập nhật trạng thái đơn hàng</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Quan ly don hang</h1>
+          <p className="text-muted-foreground">Don hang tu khach dat — dong bo thoi gian thuc</p>
+        </div>
+        <Button variant="outline" onClick={loadOrders} disabled={loading}>
+          Lam moi
+        </Button>
       </div>
+
+      {loading && (
+        <p className="text-muted-foreground text-sm">Dang tai don hang...</p>
+      )}
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -191,15 +227,15 @@ export default function AdminOrdersPage() {
               </TableHeader>
               <TableBody>
                 {filteredOrders.map((order) => {
-                  const customer = users.find((u) => u.id === order.userId)
+                  const customerName = order.customerName || order.customerEmail || order.userId
                   const statusInfo = getStatusInfo(order.status)
                   return (
                     <TableRow key={order.id}>
                       <TableCell className="font-mono font-medium">{order.id}</TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{(customer?.name || customer?.fullName || "Khách hàng")}</p>
-                          <p className="text-xs text-muted-foreground">{customer?.phone}</p>
+                          <p className="font-medium">{customerName}</p>
+                          <p className="text-xs text-muted-foreground">{order.customerPhone || order.phone}</p>
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
@@ -270,16 +306,11 @@ export default function AdminOrdersPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {(() => {
-                      const customer = users.find((u) => u.id === selectedOrder.userId)
-                      return (
-                        <div className="space-y-1">
-                          <p className="font-medium">{customer?.name || customer?.fullName}</p>
-                          <p className="text-sm text-muted-foreground">{customer?.email}</p>
-                          <p className="text-sm text-muted-foreground">{customer?.phone}</p>
-                        </div>
-                      )
-                    })()}
+                    <div className="space-y-1">
+                      <p className="font-medium">{selectedOrder.customerName || "Khach hang"}</p>
+                      <p className="text-sm text-muted-foreground">{selectedOrder.customerEmail}</p>
+                      <p className="text-sm text-muted-foreground">{selectedOrder.customerPhone || selectedOrder.phone}</p>
+                    </div>
                   </CardContent>
                 </Card>
                 <Card>
@@ -364,18 +395,18 @@ export default function AdminOrdersPage() {
                     </TableHeader>
                     <TableBody>
                       {selectedOrder.items.map((item) => {
-                        const book = books.find((b) => b.id === item.bookId)
+                        const bookTitle = bookMap[item.bookId] || item.bookId
                         return (
                           <TableRow key={item.bookId}>
                             <TableCell>
                               <div className="flex items-center gap-3">
                                 <img
                                   src={book?.coverImage}
-                                  alt={book?.title}
+                                  alt={bookTitle}
                                   className="w-10 h-14 object-cover rounded"
                                 />
                                 <div>
-                                  <p className="font-medium line-clamp-1">{book?.title}</p>
+                                  <p className="font-medium line-clamp-1">{bookTitle}</p>
                                   <p className="text-xs text-muted-foreground">{book?.author}</p>
                                 </div>
                               </div>

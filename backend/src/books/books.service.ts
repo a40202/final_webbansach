@@ -25,6 +25,14 @@ export class BooksService {
       where.category = { contains: query.category, mode: 'insensitive' };
     }
 
+    if (query.author) {
+      where.author = { equals: query.author, mode: 'insensitive' };
+    }
+
+    if (query.publisher) {
+      where.publisher = { equals: query.publisher, mode: 'insensitive' };
+    }
+
     if (query.minPrice != null || query.maxPrice != null) {
       where.price = {};
       if (query.minPrice != null) where.price.gte = query.minPrice;
@@ -86,5 +94,14 @@ export class BooksService {
     const book = await this.prisma.book.findUnique({ where: { id } });
     if (!book) throw new NotFoundException(`Book ${id} not found`);
     return mapBook(book);
+  }
+
+  async getFiltersMeta(): Promise<{ authors: string[]; publishers: string[] }> {
+    const books = await this.prisma.book.findMany({
+      select: { author: true, publisher: true },
+    });
+    const authors = [...new Set(books.map((b) => b.author))].sort();
+    const publishers = [...new Set(books.map((b) => b.publisher))].sort();
+    return { authors, publishers };
   }
 }

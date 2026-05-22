@@ -9,4 +9,7 @@ export class CreateOrderDto {
   phone: string;
   paymentMethod: 'cash' | 'transfer';
   shippingFee?: number;
+  buyerName?: string;
+  buyerEmail?: string;
+  note?: string;
 }

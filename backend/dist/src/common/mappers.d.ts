@@ -6,6 +6,12 @@ type OrderWithItems = PrismaOrder & {
         quantity: number;
         price: number;
     }[];
+    user?: {
+        fullName: string;
+        name: string | null;
+        email: string;
+        phone: string;
+    };
 };
 export declare function mapBook(book: PrismaBook): Book;
 export declare function mapUser(user: User): PublicUser;

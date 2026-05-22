@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { User, Package, Heart, Settings, LogOut, ChevronRight } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Footer } from '@/components/layout/footer'
@@ -13,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
-import { useAuth } from '@/lib/auth-context'
+import { useAuth, useRequireAuth } from '@/lib/auth-context'
 import { toast } from 'sonner'
 
 const sidebarLinks = [
@@ -24,7 +23,7 @@ const sidebarLinks = [
 ]
 
 export default function ProfilePage() {
-  const router = useRouter()
+  const { user: requiredUser, isLoading: authLoading } = useRequireAuth()
   const { user, logout, updateProfile } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
@@ -38,9 +37,12 @@ export default function ProfilePage() {
     confirmPassword: '',
   })
 
-  if (!user) {
-    router.push('/login')
-    return null
+  if (authLoading || !requiredUser || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Đang tải...</p>
+      </div>
+    )
   }
 
   const handleUpdateProfile = async (e: React.FormEvent) => {

@@ -17,11 +17,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 const navigation = [
-  { name: 'Trang chủ', href: '/' },
-  { name: 'Sách', href: '/books' },
-  { name: 'Thể loại', href: '/categories' },
-  { name: 'Khuyến mãi', href: '/sale' },
-  { name: 'Liên hệ', href: '/contact' },
+  { name: 'Trang chu', href: '/' },
+  { name: 'Sach', href: '/books' },
+  { name: 'The loai', href: '/categories' },
+  { name: 'Khuyen mai', href: '/sale' },
+  { name: 'Bai viet', href: '/articles' },
+  { name: 'Lien he', href: '/contact' },
 ]
 
 export function Header() {

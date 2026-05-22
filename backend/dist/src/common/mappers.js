@@ -60,6 +60,9 @@ function mapOrder(order) {
         status: order.status,
         createdAt: order.createdAt.toISOString().split('T')[0],
         updatedAt: order.updatedAt.toISOString().split('T')[0],
+        customerName: order.user?.name ?? order.user?.fullName,
+        customerEmail: order.user?.email,
+        customerPhone: order.user?.phone,
     };
 }
 function mapReview(r) {

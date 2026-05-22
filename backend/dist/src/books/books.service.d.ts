@@ -11,4 +11,8 @@ export declare class BooksService {
     findNewArrivals(): Promise<Book[]>;
     findBestSellers(): Promise<Book[]>;
     findOne(id: string): Promise<Book>;
+    getFiltersMeta(): Promise<{
+        authors: string[];
+        publishers: string[];
+    }>;
 }

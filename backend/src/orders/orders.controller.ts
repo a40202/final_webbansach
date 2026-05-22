@@ -36,6 +36,11 @@ export class OrdersController {
     return this.ordersService.create(user.id, dto);
   }
 
+  @Patch(':id/cancel')
+  cancel(@Param('id') id: string, @CurrentUser() user: PublicUser) {
+    return this.ordersService.cancelByCustomer(id, user);
+  }
+
   @Patch(':id/status')
   @UseGuards(RolesGuard)
   @Roles('admin', 'staff')

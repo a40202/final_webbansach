@@ -26,6 +26,11 @@ export class BooksController {
     return this.booksService.findBestSellers();
   }
 
+  @Get('filters/meta')
+  getFiltersMeta() {
+    return this.booksService.getFiltersMeta();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.booksService.findOne(id);

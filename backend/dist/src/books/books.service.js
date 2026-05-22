@@ -31,6 +31,12 @@ let BooksService = class BooksService {
         if (query.category) {
             where.category = { contains: query.category, mode: 'insensitive' };
         }
+        if (query.author) {
+            where.author = { equals: query.author, mode: 'insensitive' };
+        }
+        if (query.publisher) {
+            where.publisher = { equals: query.publisher, mode: 'insensitive' };
+        }
         if (query.minPrice != null || query.maxPrice != null) {
             where.price = {};
             if (query.minPrice != null)
@@ -88,6 +94,14 @@ let BooksService = class BooksService {
         if (!book)
             throw new common_1.NotFoundException(`Book ${id} not found`);
         return (0, mappers_1.mapBook)(book);
+    }
+    async getFiltersMeta() {
+        const books = await this.prisma.book.findMany({
+            select: { author: true, publisher: true },
+        });
+        const authors = [...new Set(books.map((b) => b.author))].sort();
+        const publishers = [...new Set(books.map((b) => b.publisher))].sort();
+        return { authors, publishers };
     }
 };
 exports.BooksService = BooksService;

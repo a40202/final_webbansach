@@ -57,6 +57,9 @@ export interface Order {
     status: OrderStatus;
     createdAt: string;
     updatedAt: string;
+    customerName?: string;
+    customerEmail?: string;
+    customerPhone?: string;
 }
 export interface Review {
     id: string;
@@ -67,6 +70,33 @@ export interface Review {
     comment: string;
     createdAt: string;
 }
+export interface Promotion {
+    id: string;
+    title: string;
+    description: string;
+    code?: string;
+    discountType: 'percent' | 'fixed';
+    discountValue: number;
+    minOrder?: number;
+    startDate: string;
+    endDate: string;
+    isActive: boolean;
+    imageUrl?: string;
+    createdAt: string;
+}
+export interface Article {
+    id: string;
+    title: string;
+    slug: string;
+    excerpt: string;
+    content: string;
+    coverImage?: string;
+    authorName: string;
+    isPublished: boolean;
+    publishedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+}
 export interface AuthResponse {
     user: PublicUser;
     accessToken: string;
@@ -75,4 +105,38 @@ export interface JwtPayload {
     sub: string;
     email: string;
     role: string;
+}
+export interface DashboardStats {
+    totalBooks: number;
+    totalOrders: number;
+    totalUsers: number;
+    totalRevenue: number;
+    pendingOrders: number;
+    lowStockBooks: number;
+    recentOrders: Order[];
+}
+export interface ReportsStats {
+    totalRevenue: number;
+    totalOrders: number;
+    completedOrders: number;
+    cancelledOrders: number;
+    avgOrderValue: number;
+    revenueChange: number;
+    ordersChange: number;
+    topBooks: {
+        bookId: string;
+        title: string;
+        quantity: number;
+        revenue: number;
+    }[];
+    ordersByStatus: Record<string, number>;
+    revenueByMonth: {
+        month: string;
+        revenue: number;
+        orders: number;
+    }[];
+}
+export interface BookFiltersMeta {
+    authors: string[];
+    publishers: string[];
 }

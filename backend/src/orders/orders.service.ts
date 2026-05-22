@@ -8,11 +8,17 @@ import { OrderStatus, PaymentMethod } from '@prisma/client';
 import type { Order, OrderStatus as OrderStatusType, PublicUser } from '../common/types';
 import { mapOrder } from '../common/mappers';
 import { PrismaService } from '../prisma/prisma.service';
+import { CartService } from '../cart/cart.service';
+import { InvoicesService } from '../invoices/invoices.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly invoicesService: InvoicesService,
+    private readonly cartService: CartService,
+  ) {}
 
   private async nextOrderId(): Promise<string> {
     const orders = await this.prisma.order.findMany({
@@ -36,7 +42,12 @@ export class OrdersService {
 
     const rows = await this.prisma.order.findMany({
       where,
-      include: { items: true },
+      include: {
+        items: true,
+        user: {
+          select: { fullName: true, name: true, email: true, phone: true },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return rows.map(mapOrder);
@@ -84,6 +95,8 @@ export class OrdersService {
     const shippingFee = dto.shippingFee ?? (subtotal >= 300000 ? 0 : 30000);
     const totalAmount = subtotal + shippingFee;
     const orderId = await this.nextOrderId();
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
 
     const order = await this.prisma.$transaction(async (tx) => {
       for (const item of orderItems) {
@@ -93,7 +106,7 @@ export class OrdersService {
         });
       }
 
-      return tx.order.create({
+      const created = await tx.order.create({
         data: {
           id: orderId,
           userId,
@@ -108,9 +121,62 @@ export class OrdersService {
         },
         include: { items: true },
       });
+
+      await this.invoicesService.createForOrder(
+        created.id,
+        userId,
+        {
+          subtotal,
+          shippingFee,
+          totalAmount,
+          paymentMethod: dto.paymentMethod as PaymentMethod,
+          buyerName: dto.buyerName || user.fullName,
+          buyerEmail: dto.buyerEmail || user.email,
+          buyerPhone: dto.phone,
+          buyerAddress: dto.shippingAddress,
+          note: dto.note,
+        },
+        tx as unknown as PrismaService,
+      );
+
+      return created;
     });
 
+    await this.cartService.clearCart(userId);
+
     return mapOrder(order);
+  }
+
+  async cancelByCustomer(id: string, user: PublicUser): Promise<Order> {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!order) throw new NotFoundException(`Order ${id} not found`);
+    if (order.userId !== user.id) {
+      throw new ForbiddenException('Khong co quyen huy don hang nay');
+    }
+    if (order.status !== OrderStatus.pending) {
+      throw new BadRequestException(
+        'Chi huy duoc don hang dang cho xac nhan',
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      for (const item of order.items) {
+        await tx.book.update({
+          where: { id: item.bookId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
+      return tx.order.update({
+        where: { id },
+        data: { status: OrderStatus.cancelled },
+        include: { items: true },
+      });
+    });
+
+    return mapOrder(updated);
   }
 
   async updateStatus(
@@ -122,11 +188,33 @@ export class OrdersService {
       throw new ForbiddenException('Chi admin/staff moi cap nhat trang thai');
     }
 
-    const order = await this.prisma.order.update({
+    const existing = await this.prisma.order.findUnique({
       where: { id },
-      data: { status: status as OrderStatus },
       include: { items: true },
     });
+    if (!existing) throw new NotFoundException(`Order ${id} not found`);
+
+    const newStatus = status as OrderStatus;
+    const shouldRestoreStock =
+      newStatus === OrderStatus.cancelled &&
+      existing.status !== OrderStatus.cancelled;
+
+    const order = await this.prisma.$transaction(async (tx) => {
+      if (shouldRestoreStock) {
+        for (const item of existing.items) {
+          await tx.book.update({
+            where: { id: item.bookId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
+      }
+      return tx.order.update({
+        where: { id },
+        data: { status: newStatus },
+        include: { items: true },
+      });
+    });
+
     return mapOrder(order);
   }
 }

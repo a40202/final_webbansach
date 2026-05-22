@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 import {
   Package,
   ChevronRight,
@@ -15,6 +14,7 @@ import {
   PackageCheck,
   XCircle,
   RotateCcw,
+  FileText,
 } from 'lucide-react'
 import { Header } from '@/components/layout/header'
 import { Footer } from '@/components/layout/footer'
@@ -39,11 +39,27 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Separator } from '@/components/ui/separator'
-import { useAuth } from '@/lib/auth-context'
+import { useAuth, useRequireAuth } from '@/lib/auth-context'
 import { getBookById, formatPrice } from '@/lib/data'
 import type { Order } from '@/lib/data'
-import { ordersApi } from '@/lib/api'
+import {
+  ordersApi,
+  returnsApi,
+  ApiError,
+  type ReturnRequest,
+  type ReturnReasonType,
+} from '@/lib/api'
 import { toast } from 'sonner'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 
 const statusSteps = [
   { key: 'pending', label: 'Chờ xác nhận', icon: Clock },
@@ -148,28 +164,221 @@ function OrderTimeline({ status }: { status: Order['status'] }) {
   )
 }
 
+const returnReasonOptions: { value: ReturnReasonType; label: string }[] = [
+  { value: 'defective', label: 'Sản phẩm lỗi / hỏng' },
+  { value: 'wrong_item', label: 'Giao sai hàng' },
+  { value: 'not_as_described', label: 'Không đúng mô tả' },
+  { value: 'changed_mind', label: 'Đổi ý / không còn nhu cầu' },
+  { value: 'other', label: 'Lý do khác' },
+]
+
+const activeReturnStatuses = ['pending', 'approved', 'received']
+
+function ReturnOrderDialog({
+  order,
+  onSuccess,
+}: {
+  order: Order
+  onSuccess: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState<ReturnReasonType>('defective')
+  const [description, setDescription] = useState('')
+  const [selected, setSelected] = useState<Record<string, number>>({})
+  const [submitting, setSubmitting] = useState(false)
+
+  const toggleItem = (bookId: string, maxQty: number, checked: boolean) => {
+    setSelected((prev) => {
+      const next = { ...prev }
+      if (checked) next[bookId] = maxQty
+      else delete next[bookId]
+      return next
+    })
+  }
+
+  const setItemQty = (bookId: string, qty: number, maxQty: number) => {
+    setSelected((prev) => ({
+      ...prev,
+      [bookId]: Math.min(Math.max(1, qty), maxQty),
+    }))
+  }
+
+  const handleSubmit = async () => {
+    const items = Object.entries(selected).map(([bookId, quantity]) => ({
+      bookId,
+      quantity,
+    }))
+    if (items.length === 0) {
+      toast.error('Chọn ít nhất một sản phẩm cần trả')
+      return
+    }
+    if (!description.trim()) {
+      toast.error('Vui lòng mô tả lý do trả hàng')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await returnsApi.create({
+        orderId: order.id,
+        reason,
+        description: description.trim(),
+        items,
+      })
+      toast.success('Đã gửi yêu cầu trả hàng. Chúng tôi sẽ xử lý trong 1-3 ngày.')
+      setOpen(false)
+      onSuccess()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Không gửi được yêu cầu')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <RotateCcw className="h-4 w-4 mr-1" />
+          Trả hàng
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Yêu cầu trả hàng — #{order.id}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Sản phẩm trả</Label>
+            {order.items.map((item) => {
+              const book = getBookById(item.bookId)
+              const checked = item.bookId in selected
+              return (
+                <div
+                  key={item.bookId}
+                  className="flex items-start gap-3 p-3 border rounded-lg"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(c) =>
+                      toggleItem(item.bookId, item.quantity, c === true)
+                    }
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium line-clamp-2">
+                      {book?.title || item.bookId}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Đã mua: {item.quantity}
+                    </p>
+                    {checked && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <Label className="text-xs">SL trả:</Label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={item.quantity}
+                          value={selected[item.bookId]}
+                          onChange={(e) =>
+                            setItemQty(
+                              item.bookId,
+                              Number(e.target.value),
+                              item.quantity,
+                            )
+                          }
+                          className="w-16 h-8 border rounded px-2 text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="space-y-2">
+            <Label>Lý do</Label>
+            <Select
+              value={reason}
+              onValueChange={(v) => setReason(v as ReturnReasonType)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {returnReasonOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Mô tả chi tiết</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Mô tả tình trạng sách, lý do trả..."
+              rows={3}
+            />
+          </div>
+          <Button
+            className="w-full"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? 'Đang gửi...' : 'Gửi yêu cầu trả hàng'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function OrdersPage() {
-  const router = useRouter()
+  const { user: requiredUser, isLoading: authLoading } = useRequireAuth()
   const { user } = useAuth()
   const [orderList, setOrderList] = useState<Order[]>([])
+  const [returnList, setReturnList] = useState<ReturnRequest[]>([])
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (!user) {
-      router.push('/login')
-      return
-    }
+  const loadData = () => {
+    if (!user) return
     setLoading(true)
-    ordersApi
-      .getAll(user.id)
-      .then(setOrderList)
-      .catch(() => setOrderList([]))
+    Promise.all([ordersApi.getAll(), returnsApi.getAll()])
+      .then(([orders, returns]) => {
+        setOrderList(orders)
+        setReturnList(returns)
+      })
+      .catch(() => {
+        setOrderList([])
+        setReturnList([])
+      })
       .finally(() => setLoading(false))
-  }, [user, router])
+  }
 
-  if (!user) {
-    return null
+  useEffect(() => {
+    if (user) {
+      loadData()
+    }
+  }, [user])
+
+  const orderHasActiveReturn = (orderId: string) =>
+    returnList.some(
+      (r) =>
+        r.orderId === orderId && activeReturnStatuses.includes(r.status),
+    )
+
+  if (authLoading || !requiredUser || !user) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <p className="text-muted-foreground">Đang tải...</p>
+        </main>
+        <Footer />
+      </div>
+    )
   }
 
   const filtered =
@@ -179,13 +388,15 @@ export default function OrdersPage() {
 
   const handleCancelOrder = async (orderId: string) => {
     try {
-      const updated = await ordersApi.updateStatus(orderId, 'cancelled')
+      const updated = await ordersApi.cancel(orderId)
       setOrderList((prev) =>
         prev.map((o) => (o.id === orderId ? updated : o)),
       )
       toast.success('Da huy don hang. Hoan tien se duoc xu ly trong 3-5 ngay lam viec.')
-    } catch {
-      toast.error('Khong the huy don hang')
+    } catch (e) {
+      const msg =
+        e instanceof ApiError ? e.message : 'Không thể hủy đơn hàng'
+      toast.error(msg)
     }
   }
 
@@ -291,7 +502,24 @@ export default function OrdersPage() {
                     <StatusBadge status={order.status} />
                   </div>
                   <div className="flex gap-2">
-                    {/* Detail dialog */}
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/invoices/${order.id}`}>
+                        <FileText className="h-4 w-4 mr-1" />
+                        Hóa đơn
+                      </Link>
+                    </Button>
+                    {order.status === 'delivered' &&
+                      !orderHasActiveReturn(order.id) && (
+                        <ReturnOrderDialog
+                          order={order}
+                          onSuccess={loadData}
+                        />
+                      )}
+                    {orderHasActiveReturn(order.id) && (
+                      <Badge variant="secondary" className="self-center">
+                        Đang xử lý trả hàng
+                      </Badge>
+                    )}
                     <Dialog>
                       <DialogTrigger asChild>
                         <Button variant="outline" size="sm">

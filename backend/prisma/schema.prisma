@@ -26,20 +26,39 @@ enum PaymentMethod {
   transfer
 }
 
+enum ReturnStatus {
+  pending
+  approved
+  rejected
+  received
+  refunded
+  cancelled
+}
+
+enum ReturnReason {
+  defective
+  wrong_item
+  not_as_described
+  changed_mind
+  other
+}
+
 model User {
-  id        String   @id
-  email     String   @unique
-  password  String
-  fullName  String
-  name      String?
-  phone     String
-  address   String
-  role      Role     @default(customer)
-  avatar    String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  orders    Order[]
-  reviews   Review[]
+  id             String          @id
+  email          String          @unique
+  password       String
+  fullName       String
+  name           String?
+  phone          String
+  address        String
+  role           Role            @default(customer)
+  avatar         String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  orders         Order[]
+  reviews        Review[]
+  cart           Cart?
+  returnRequests ReturnRequest[]
 }
 
 model Category {
@@ -75,21 +94,97 @@ model Book {
   isNewArrival  Boolean  @default(false)
   isBestSeller  Boolean  @default(false)
   orderItems    OrderItem[]
+  cartItems     CartItem[]
   reviews       Review[]
 }
 
+enum PaymentStatus {
+  unpaid
+  paid
+  refunded
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id])
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, bookId])
+}
+
 model Order {
-  id              String        @id
+  id              String          @id
   userId          String
-  user            User          @relation(fields: [userId], references: [id])
+  user            User            @relation(fields: [userId], references: [id])
   items           OrderItem[]
+  invoice         Invoice?
+  returnRequests  ReturnRequest[]
   totalAmount     Int
   shippingAddress String
   phone           String
   paymentMethod   PaymentMethod
-  status          OrderStatus   @default(pending)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  status          OrderStatus     @default(pending)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model ReturnRequest {
+  id           String       @id
+  orderId      String
+  order        Order        @relation(fields: [orderId], references: [id])
+  userId       String
+  user         User         @relation(fields: [userId], references: [id])
+  status       ReturnStatus @default(pending)
+  reason       ReturnReason
+  description  String       @db.Text
+  adminNote    String?      @db.Text
+  refundAmount Int?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  items        ReturnItem[]
+}
+
+model ReturnItem {
+  id              String        @id @default(cuid())
+  returnRequestId String
+  returnRequest   ReturnRequest @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
+  bookId          String
+  quantity        Int
+  price           Int
+}
+
+model Invoice {
+  id            String        @id
+  orderId       String        @unique
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId        String
+  subtotal      Int
+  shippingFee   Int
+  discount      Int           @default(0)
+  totalAmount   Int
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(unpaid)
+  buyerName     String
+  buyerEmail    String
+  buyerPhone    String
+  buyerAddress  String
+  note          String?
+  issuedAt      DateTime      @default(now())
+  paidAt        DateTime?
 }
 
 model OrderItem {
@@ -122,4 +217,33 @@ model InventoryLog {
   note      String
   createdAt DateTime @default(now())
   createdBy String
+}
+
+model Promotion {
+  id            String   @id @default(cuid())
+  title         String
+  description   String   @db.Text
+  code          String?  @unique
+  discountType  String
+  discountValue Int
+  minOrder      Int?
+  startDate     DateTime
+  endDate       DateTime
+  isActive      Boolean  @default(true)
+  imageUrl      String?
+  createdAt     DateTime @default(now())
+}
+
+model Article {
+  id          String    @id @default(cuid())
+  title       String
+  slug        String    @unique
+  excerpt     String    @db.Text
+  content     String    @db.Text
+  coverImage  String?
+  authorName  String
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }

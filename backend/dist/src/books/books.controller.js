@@ -33,6 +33,9 @@ let BooksController = class BooksController {
     findBestSellers() {
         return this.booksService.findBestSellers();
     }
+    getFiltersMeta() {
+        return this.booksService.getFiltersMeta();
+    }
     findOne(id) {
         return this.booksService.findOne(id);
     }
@@ -63,6 +66,12 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], BooksController.prototype, "findBestSellers", null);
+__decorate([
+    (0, common_1.Get)('filters/meta'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], BooksController.prototype, "getFiltersMeta", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),

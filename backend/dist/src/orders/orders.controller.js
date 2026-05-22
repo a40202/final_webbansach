@@ -34,6 +34,9 @@ let OrdersController = class OrdersController {
     create(user, dto) {
         return this.ordersService.create(user.id, dto);
     }
+    cancel(id, user) {
+        return this.ordersService.cancelByCustomer(id, user);
+    }
     updateStatus(id, status, user) {
         return this.ordersService.updateStatus(id, status, user);
     }
@@ -63,6 +66,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, create_order_dto_1.CreateOrderDto]),
     __metadata("design:returntype", void 0)
 ], OrdersController.prototype, "create", null);
+__decorate([
+    (0, common_1.Patch)(':id/cancel'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], OrdersController.prototype, "cancel", null);
 __decorate([
     (0, common_1.Patch)(':id/status'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
