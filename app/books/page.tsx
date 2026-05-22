@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-react'
 import { Header } from '@/components/layout/header'
@@ -223,7 +223,7 @@ function FilterSidebar({
   )
 }
 
-export default function BooksPage() {
+function BooksPageContent() {
   const searchParams = useSearchParams()
   const initialSearch = searchParams.get('search') || ''
   const initialCategory = searchParams.get('category') || ''
@@ -470,5 +470,23 @@ export default function BooksPage() {
 
       <Footer />
     </div>
+  )
+}
+
+export default function BooksPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex flex-col">
+          <Header />
+          <main className="flex-1 flex items-center justify-center">
+            <p className="text-muted-foreground">Đang tải...</p>
+          </main>
+          <Footer />
+        </div>
+      }
+    >
+      <BooksPageContent />
+    </Suspense>
   )
 }

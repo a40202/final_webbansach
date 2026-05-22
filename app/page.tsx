@@ -6,6 +6,7 @@ import { Header } from '@/components/layout/header'
 import { Footer } from '@/components/layout/footer'
 import { BookCard } from '@/components/book-card'
 import { booksApi, categoriesApi } from '@/lib/api'
+import type { Book, Category } from '@/lib/data'
 
 const features = [
   {
@@ -31,12 +32,21 @@ const features = [
 ]
 
 export default async function HomePage() {
-  const [featuredBooks, newArrivals, bestSellers, categories] = await Promise.all([
-    booksApi.getFeatured(),
-    booksApi.getNewArrivals(),
-    booksApi.getBestSellers(),
-    categoriesApi.getAll(),
-  ])
+  let featuredBooks: Book[] = []
+  let newArrivals: Book[] = []
+  let bestSellers: Book[] = []
+  let categories: Category[] = []
+
+  try {
+    ;[featuredBooks, newArrivals, bestSellers, categories] = await Promise.all([
+      booksApi.getFeatured(),
+      booksApi.getNewArrivals(),
+      booksApi.getBestSellers(),
+      categoriesApi.getAll(),
+    ])
+  } catch {
+    /* API chưa chạy lúc build hoặc lỗi mạng — trang vẫn build được */
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
