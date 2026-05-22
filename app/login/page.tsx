@@ -51,9 +51,9 @@ export default function LoginPage() {
 
           {/* Header */}
           <div className="text-center">
-            <h1 className="font-serif text-3xl font-semibold">Dang nhap</h1>
+            <h1 className="font-serif text-3xl font-semibold">Đăng nhập</h1>
             <p className="text-muted-foreground mt-2">
-              Chao mung ban quay tro lai
+              Chào mừng bạn quay trở lại
             </p>
           </div>
 
@@ -73,16 +73,16 @@ export default function LoginPage() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">Mat khau</Label>
+                <Label htmlFor="password">Mật khẩu</Label>
                 <Link href="/forgot-password" className="text-sm text-accent hover:underline">
-                  Quen mat khau?
+                  Quên mật khẩu?
                 </Link>
               </div>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Nhap mat khau"
+                  placeholder="Nhập mật khẩu"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
@@ -104,25 +104,24 @@ export default function LoginPage() {
             </div>
 
             <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-              {isLoading ? 'Dang dang nhap...' : 'Dang nhap'}
+              {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </Button>
           </form>
 
           {/* Demo accounts */}
           <div className="bg-secondary p-4 rounded-lg">
-            <p className="text-sm font-medium mb-2">Tai khoan demo:</p>
+            <p className="text-sm font-medium mb-2">Tài khoản demo:</p>
             <div className="text-xs text-muted-foreground space-y-1">
-              <p>Admin: admin@bookstore.com / admin123</p>
-              <p>Nhan vien: staff@bookstore.com / staff123</p>
-              <p>Khach hang: customer@gmail.com / customer123</p>
+              <p>Admin: admin@bookstore.com / admin123</p>        
+              <p>Khách hàng: customer@gmail.com / customer123</p>
             </div>
           </div>
 
           {/* Register link */}
           <p className="text-center text-sm text-muted-foreground">
-            Chua co tai khoan?{' '}
+            Chưa có tài khoản?{' '}
             <Link href="/register" className="text-accent font-medium hover:underline">
-              Dang ky ngay
+              Đăng ký ngay
             </Link>
           </p>
         </div>
@@ -133,10 +132,10 @@ export default function LoginPage() {
         <div className="absolute inset-0 flex items-center justify-center p-12">
           <div className="text-center max-w-md">
             <h2 className="font-serif text-4xl font-semibold mb-4">
-              Kham pha kho tang tri thuc
+              Khám phá kho tàng tri thức
             </h2>
             <p className="text-muted-foreground">
-              Hang ngan dau sach hay dang cho ban. Dang nhap de trai nghiem dich vu tot nhat.
+              Hàng ngàn đầu sách hay đang chờ bạn. Đăng nhập để trải nghiệm dịch vụ tốt nhất.
             </p>
           </div>
         </div>
