@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Search, SlidersHorizontal, X, ChevronDown } from 'lucide-react'
 import { Header } from '@/components/layout/header'
@@ -29,7 +29,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { books, categories } from '@/lib/data'
+import { categories, type Book } from '@/lib/data'
+import { booksApi } from '@/lib/api'
 
 const sortOptions = [
   { value: 'newest', label: 'Mới nhất' },
@@ -150,12 +151,26 @@ export default function BooksPage() {
   const initialCategory = searchParams.get('category') || ''
   const initialFilter = searchParams.get('filter') || ''
 
+  const [books, setBooks] = useState<Book[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState(initialSearch)
   const [sortBy, setSortBy] = useState('newest')
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
     initialCategory ? [initialCategory] : []
   )
   const [selectedPriceRanges, setSelectedPriceRanges] = useState<string[]>([])
+
+  useEffect(() => {
+    setLoading(true)
+    booksApi
+      .getAll({
+        search: initialSearch || undefined,
+        filter: (initialFilter as 'featured' | 'new' | 'bestseller') || undefined,
+      })
+      .then(setBooks)
+      .catch(() => setBooks([]))
+      .finally(() => setLoading(false))
+  }, [initialSearch, initialFilter])
 
   const filteredBooks = useMemo(() => {
     let result = [...books]
@@ -329,7 +344,11 @@ export default function BooksPage() {
               </div>
 
               {/* Books grid */}
-              {filteredBooks.length > 0 ? (
+              {loading ? (
+                <div className="text-center py-16 text-muted-foreground">
+                  Dang tai sach...
+                </div>
+              ) : filteredBooks.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
                   {filteredBooks.map((book) => (
                     <BookCard key={book.id} book={book} />

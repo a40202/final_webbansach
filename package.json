@@ -4,7 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:api": "npm run start:dev --prefix backend",
+    "db:up": "docker compose up -d",
+    "db:migrate": "npm run db:migrate --prefix backend",
+    "db:seed": "npm run db:seed --prefix backend",
     "build": "next build",
+    "build:api": "npm run build --prefix backend",
     "start": "next start",
     "lint": "eslint ."
   },

@@ -1,15 +1,22 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { User, users as mockUsers } from '@/lib/data'
+import {
+  authApi,
+  ApiError,
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+  type PublicUser,
+} from '@/lib/api'
 
 interface AuthContextType {
-  user: User | null
+  user: PublicUser | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>
   register: (data: RegisterData) => Promise<{ success: boolean; message: string }>
   logout: () => void
-  updateProfile: (data: Partial<User>) => Promise<{ success: boolean; message: string }>
+  updateProfile: (data: Partial<PublicUser>) => Promise<{ success: boolean; message: string }>
 }
 
 interface RegisterData {
@@ -22,74 +29,83 @@ interface RegisterData {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+function persistSession(user: PublicUser, token: string) {
+  setAccessToken(token)
+  localStorage.setItem('user', JSON.stringify(user))
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<PublicUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Load user from localStorage on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem('user')
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
+    async function restoreSession() {
+      const token = getAccessToken()
+      const savedUser = localStorage.getItem('user')
+      if (!token || !savedUser) {
+        setIsLoading(false)
+        return
+      }
+      try {
+        const me = await authApi.me()
+        setUser(me)
+        localStorage.setItem('user', JSON.stringify(me))
+      } catch {
+        clearAccessToken()
+        localStorage.removeItem('user')
+      } finally {
+        setIsLoading(false)
+      }
     }
-    setIsLoading(false)
+    restoreSession()
   }, [])
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; message: string }> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    const foundUser = mockUsers.find(u => u.email === email && u.password === password)
-    
-    if (foundUser) {
-      setUser(foundUser)
-      localStorage.setItem('user', JSON.stringify(foundUser))
+  const login = async (email: string, password: string) => {
+    try {
+      const { user: loggedIn, accessToken } = await authApi.login(email, password)
+      setUser(loggedIn)
+      persistSession(loggedIn, accessToken)
       return { success: true, message: 'Dang nhap thanh cong!' }
+    } catch (e) {
+      const message =
+        e instanceof ApiError ? e.message : 'Email hoac mat khau khong dung!'
+      return { success: false, message }
     }
-    
-    return { success: false, message: 'Email hoac mat khau khong dung!' }
   }
 
-  const register = async (data: RegisterData): Promise<{ success: boolean; message: string }> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    const existingUser = mockUsers.find(u => u.email === data.email)
-    if (existingUser) {
-      return { success: false, message: 'Email da ton tai!' }
+  const register = async (data: RegisterData) => {
+    try {
+      const { user: newUser, accessToken } = await authApi.register(data)
+      setUser(newUser)
+      persistSession(newUser, accessToken)
+      return { success: true, message: 'Dang ky thanh cong!' }
+    } catch (e) {
+      const message =
+        e instanceof ApiError ? e.message : 'Co loi xay ra khi dang ky!'
+      return { success: false, message }
     }
-    
-    const newUser: User = {
-      id: String(mockUsers.length + 1),
-      ...data,
-      role: 'customer',
-      createdAt: new Date().toISOString().split('T')[0],
-    }
-    
-    mockUsers.push(newUser)
-    setUser(newUser)
-    localStorage.setItem('user', JSON.stringify(newUser))
-    
-    return { success: true, message: 'Dang ky thanh cong!' }
   }
 
   const logout = () => {
     setUser(null)
+    clearAccessToken()
     localStorage.removeItem('user')
   }
 
-  const updateProfile = async (data: Partial<User>): Promise<{ success: boolean; message: string }> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    if (user) {
-      const updatedUser = { ...user, ...data }
-      setUser(updatedUser)
-      localStorage.setItem('user', JSON.stringify(updatedUser))
-      return { success: true, message: 'Cap nhat thanh cong!' }
+  const updateProfile = async (data: Partial<PublicUser>) => {
+    if (!user) {
+      return { success: false, message: 'Co loi xay ra!' }
     }
-    
-    return { success: false, message: 'Co loi xay ra!' }
+    try {
+      const updated = await authApi.updateProfile(data)
+      setUser(updated)
+      localStorage.setItem('user', JSON.stringify(updated))
+      return { success: true, message: 'Cap nhat thanh cong!' }
+    } catch (e) {
+      const message =
+        e instanceof ApiError ? e.message : 'Co loi xay ra!'
+      return { success: false, message }
+    }
   }
 
   return (

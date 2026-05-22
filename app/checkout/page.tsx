@@ -16,6 +16,7 @@ import { Separator } from '@/components/ui/separator'
 import { useCart } from '@/lib/cart-context'
 import { useAuth } from '@/lib/auth-context'
 import { formatPrice } from '@/lib/data'
+import { ordersApi, ApiError } from '@/lib/api'
 import { toast } from 'sonner'
 
 export default function CheckoutPage() {
@@ -55,14 +56,34 @@ export default function CheckoutPage() {
       return
     }
 
+    if (!user) {
+      toast.error('Vui long dang nhap de dat hang')
+      router.push('/login')
+      return
+    }
+
     setIsLoading(true)
-    
-    // Simulate order creation
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    clearCart()
-    toast.success('Dat hang thanh cong!')
-    router.push('/order-success')
+
+    try {
+      await ordersApi.create({
+        items: cartItems.map(({ book, quantity }) => ({
+          bookId: book.id,
+          quantity,
+        })),
+        shippingAddress: formData.address,
+        phone: formData.phone,
+        paymentMethod: formData.paymentMethod,
+        shippingFee,
+      })
+      clearCart()
+      toast.success('Dat hang thanh cong!')
+      router.push('/order-success')
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : 'Dat hang that bai'
+      toast.error(msg)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (

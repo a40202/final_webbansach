@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -40,12 +40,9 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/lib/auth-context'
-import {
-  orders as mockOrders,
-  getBookById,
-  formatPrice,
-} from '@/lib/data'
+import { getBookById, formatPrice } from '@/lib/data'
 import type { Order } from '@/lib/data'
+import { ordersApi } from '@/lib/api'
 import { toast } from 'sonner'
 
 const statusSteps = [
@@ -154,13 +151,24 @@ function OrderTimeline({ status }: { status: Order['status'] }) {
 export default function OrdersPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const [orderList, setOrderList] = useState(
-    mockOrders.filter((o) => o.userId === (user?.id ?? ''))
-  )
+  const [orderList, setOrderList] = useState<Order[]>([])
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) {
+      router.push('/login')
+      return
+    }
+    setLoading(true)
+    ordersApi
+      .getAll(user.id)
+      .then(setOrderList)
+      .catch(() => setOrderList([]))
+      .finally(() => setLoading(false))
+  }, [user, router])
 
   if (!user) {
-    router.push('/login')
     return null
   }
 
@@ -169,15 +177,28 @@ export default function OrdersPage() {
       ? orderList
       : orderList.filter((o) => o.status === statusFilter)
 
-  const handleCancelOrder = (orderId: string) => {
-    setOrderList((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? { ...o, status: 'cancelled' as const, updatedAt: new Date().toISOString().split('T')[0] }
-          : o
+  const handleCancelOrder = async (orderId: string) => {
+    try {
+      const updated = await ordersApi.updateStatus(orderId, 'cancelled')
+      setOrderList((prev) =>
+        prev.map((o) => (o.id === orderId ? updated : o)),
       )
+      toast.success('Da huy don hang. Hoan tien se duoc xu ly trong 3-5 ngay lam viec.')
+    } catch {
+      toast.error('Khong the huy don hang')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <p className="text-muted-foreground">Dang tai don hang...</p>
+        </main>
+        <Footer />
+      </div>
     )
-    toast.success('Đã hủy đơn hàng. Hoàn tiền sẽ được xử lý trong 3–5 ngày làm việc.')
   }
 
   if (orderList.length === 0) {

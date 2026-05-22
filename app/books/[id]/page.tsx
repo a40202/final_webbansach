@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState } from 'react'
+import { use, useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -26,13 +26,8 @@ import { Progress } from '@/components/ui/progress'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useCart } from '@/lib/cart-context'
 import { toast } from 'sonner'
-import {
-  getBookById,
-  getBooksByCategory,
-  getReviewsByBookId,
-  formatPrice,
-  books,
-} from '@/lib/data'
+import { formatPrice, type Book, type Review } from '@/lib/data'
+import { booksApi, reviewsApi } from '@/lib/api'
 
 const features = [
   { icon: Truck, label: 'Giao hang toan quoc' },
@@ -45,9 +40,45 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
   const router = useRouter()
   const { addToCart } = useCart()
   const [quantity, setQuantity] = useState(1)
+  const [book, setBook] = useState<Book | null>(null)
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [relatedBooks, setRelatedBooks] = useState<Book[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const book = getBookById(id)
-  
+  useEffect(() => {
+    setLoading(true)
+    Promise.all([
+      booksApi.getById(id),
+      reviewsApi.getByBook(id),
+    ])
+      .then(async ([bookData, reviewData]) => {
+        setBook(bookData)
+        setReviews(reviewData)
+        const all = await booksApi.getAll()
+        setRelatedBooks(
+          all
+            .filter((b) => b.category === bookData.category && b.id !== bookData.id)
+            .slice(0, 4),
+        )
+      })
+      .catch(() => {
+        setBook(null)
+      })
+      .finally(() => setLoading(false))
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <p className="text-muted-foreground">Dang tai...</p>
+        </main>
+        <Footer />
+      </div>
+    )
+  }
+
   if (!book) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -65,11 +96,6 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
       </div>
     )
   }
-
-  const reviews = getReviewsByBookId(id)
-  const relatedBooks = getBooksByCategory(book.category)
-    .filter((b) => b.id !== book.id)
-    .slice(0, 4)
 
   const discount = book.originalPrice
     ? Math.round(((book.originalPrice - book.price) / book.originalPrice) * 100)

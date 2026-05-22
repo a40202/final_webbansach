@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { booksApi } from '@/lib/api'
 import { CartItem, Book, getBookById } from '@/lib/data'
 
 interface CartContextType {
@@ -18,28 +19,35 @@ const CartContext = createContext<CartContextType | undefined>(undefined)
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
+  const [booksById, setBooksById] = useState<Record<string, Book>>({})
 
-  // Load cart from localStorage on mount
   useEffect(() => {
     const savedCart = localStorage.getItem('cart')
     if (savedCart) {
       setItems(JSON.parse(savedCart))
     }
+    booksApi.getAll().then((books) => {
+      setBooksById(Object.fromEntries(books.map((b) => [b.id, b])))
+    }).catch(() => {
+      /* fallback to mock in resolveBook */
+    })
   }, [])
 
-  // Save cart to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(items))
   }, [items])
 
+  const resolveBook = (bookId: string): Book | undefined =>
+    booksById[bookId] ?? getBookById(bookId)
+
   const addToCart = (bookId: string, quantity: number = 1) => {
-    setItems(prevItems => {
-      const existingItem = prevItems.find(item => item.bookId === bookId)
+    setItems((prevItems) => {
+      const existingItem = prevItems.find((item) => item.bookId === bookId)
       if (existingItem) {
-        return prevItems.map(item =>
+        return prevItems.map((item) =>
           item.bookId === bookId
             ? { ...item, quantity: item.quantity + quantity }
-            : item
+            : item,
         )
       }
       return [...prevItems, { bookId, quantity }]
@@ -47,7 +55,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }
 
   const removeFromCart = (bookId: string) => {
-    setItems(prevItems => prevItems.filter(item => item.bookId !== bookId))
+    setItems((prevItems) => prevItems.filter((item) => item.bookId !== bookId))
   }
 
   const updateQuantity = (bookId: string, quantity: number) => {
@@ -55,10 +63,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeFromCart(bookId)
       return
     }
-    setItems(prevItems =>
-      prevItems.map(item =>
-        item.bookId === bookId ? { ...item, quantity } : item
-      )
+    setItems((prevItems) =>
+      prevItems.map((item) =>
+        item.bookId === bookId ? { ...item, quantity } : item,
+      ),
     )
   }
 
@@ -68,7 +76,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const getCartTotal = () => {
     return items.reduce((total, item) => {
-      const book = getBookById(item.bookId)
+      const book = resolveBook(item.bookId)
       return total + (book?.price || 0) * item.quantity
     }, 0)
   }
@@ -79,8 +87,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const getCartItems = () => {
     return items
-      .map(item => {
-        const book = getBookById(item.bookId)
+      .map((item) => {
+        const book = resolveBook(item.bookId)
         return book ? { book, quantity: item.quantity } : null
       })
       .filter((item): item is { book: Book; quantity: number } => item !== null)

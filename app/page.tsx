@@ -5,12 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Header } from '@/components/layout/header'
 import { Footer } from '@/components/layout/footer'
 import { BookCard } from '@/components/book-card'
-import {
-  categories,
-  getFeaturedBooks,
-  getNewArrivals,
-  getBestSellers,
-} from '@/lib/data'
+import { categories } from '@/lib/data'
+import { booksApi } from '@/lib/api'
 
 const features = [
   {
@@ -35,10 +31,12 @@ const features = [
   },
 ]
 
-export default function HomePage() {
-  const featuredBooks = getFeaturedBooks()
-  const newArrivals = getNewArrivals()
-  const bestSellers = getBestSellers()
+export default async function HomePage() {
+  const [featuredBooks, newArrivals, bestSellers] = await Promise.all([
+    booksApi.getFeatured(),
+    booksApi.getNewArrivals(),
+    booksApi.getBestSellers(),
+  ])
 
   return (
     <div className="min-h-screen flex flex-col">
