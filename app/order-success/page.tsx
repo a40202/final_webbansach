@@ -18,20 +18,20 @@ function OrderSuccessContent() {
         <CheckCircle className="h-12 w-12 text-green-600" />
       </div>
 
-      <h1 className="font-serif text-3xl font-semibold mb-2">Dat hang thanh cong!</h1>
+      <h1 className="font-serif text-3xl font-semibold mb-2">Đặt hàng thành công!</h1>
       <p className="text-muted-foreground mb-8">
-        Cam on ban da dat hang. Hoa don thanh toan da duoc tao tu dong.
+        Cảm ơn bạn đã đặt hàng. Hóa đơn thanh toán đã được tạo tự động.
       </p>
 
       <div className="bg-secondary p-6 rounded-lg mb-8 text-left">
         <div className="flex items-start gap-4">
           <Package className="h-6 w-6 text-primary flex-shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-medium mb-1">Buoc tiep theo</h3>
+            <h3 className="font-medium mb-1">Bước tiếp theo</h3>
             <ul className="text-sm text-muted-foreground space-y-1">
-              <li>Hoa don da luu trong he thong</li>
-              <li>Chung toi se lien he xac nhan trong 24h</li>
-              <li>Theo doi don hang tai muc Don hang cua toi</li>
+              <li>Hóa đơn đã lưu trong hệ thống</li>
+              <li>Chúng tôi sẽ liên hệ xác nhận trong 24h</li>
+              <li>Theo dõi đơn hàng tại mục Đơn hàng của tôi</li>
             </ul>
           </div>
         </div>
@@ -47,11 +47,11 @@ function OrderSuccessContent() {
           </Link>
         )}
         <Link href="/orders">
-          <Button variant="outline">Xem don hang</Button>
+          <Button variant="outline">Xem đơn hàng</Button>
         </Link>
         <Link href="/books">
           <Button variant="ghost">
-            Tiep tuc mua sam
+            Tiếp tục mua sắm
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         </Link>
@@ -65,7 +65,7 @@ export default function OrderSuccessPage() {
     <div className="min-h-screen flex flex-col">
       <Header />
       <main className="flex-1 flex items-center justify-center">
-        <Suspense fallback={<p className="text-muted-foreground">Dang tai...</p>}>
+        <Suspense fallback={<p className="text-muted-foreground">Đang tải...</p>}>
           <OrderSuccessContent />
         </Suspense>
       </main>
